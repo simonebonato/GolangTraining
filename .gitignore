@@ -1,2 +1,3 @@
 .air.toml
 basic_web_app_playlist/*/tmp/
+tmp*
