@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
-
 	"urlshort"
 )
 
@@ -29,8 +29,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+
+	// load a yaml as a flag, parse it and use it
+	yaml_path := flag.String("yaml_path", "", "Insert the path to a yaml file")
+	flag.Parse()
+	fmt.Println(*yaml_path)
+
+	yamlFILEHandler, err := urlshort.YAMLFileHandler(*yaml_path, yamlHandler)
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("Starting the server on :8080")
-	http.ListenAndServe(":8080", yamlHandler)
+	http.ListenAndServe(":8080", yamlFILEHandler)
 }
 
 func defaultMux() *http.ServeMux {
