@@ -14,7 +14,7 @@ type UrlShort struct {
 
 var ShortenerDb, _ = gorm.Open(sqlite.Open("shortener.db"), &gorm.Config{})
 
-func AddValues(db *gorm.DB) {
+func AddValues (db *gorm.DB) {
 	// apply the migration automatically if needed
 	db.AutoMigrate(&UrlShort{})
 
@@ -26,9 +26,18 @@ func AddValues(db *gorm.DB) {
 
 	for k, v := range(val_map) {
 		targetUrlShort := UrlShort{URL: k}
-		if res := db.First(&targetUrlShort, "path = ?", k); res.Error == gorm.ErrRecordNotFound {
+		if res := db.First(&targetUrlShort, "url = ?", k); res.Error == gorm.ErrRecordNotFound {
 			targetUrlShort.Path = v
 			db.Create(&targetUrlShort)
 		}
 	}
+}
+
+func GetValues (db *gorm.DB, targetURL string) (path string, err bool) {
+	// check if the value exists in the db
+	var targetURLShort UrlShort
+	if res := db.First(&targetURLShort, "url = ?", targetURL); res.Error != gorm.ErrRecordNotFound {
+		return targetURLShort.Path, false
+	}
+	return "", true
 }

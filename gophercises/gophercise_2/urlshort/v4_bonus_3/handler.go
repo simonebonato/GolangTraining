@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v2"
+	"gorm.io/gorm"
 )
 
 // since the structure of the yaml is known, I can simply define a struct with the corresponding elements
@@ -34,6 +35,26 @@ func (router Router) ServeHTTP (w http.ResponseWriter, r *http.Request) {
 	} else {
 		router.fallback.ServeHTTP(w, r)
 	}
+}
+
+type DbRouter struct {
+	db *gorm.DB
+	fallback http.Handler
+}
+
+func (dbrouter DbRouter) ServeHTTP (w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	value, exists :=  GetValues(dbrouter.db, path)
+	if !exists {
+		http.Redirect(w, r, value, http.StatusSeeOther)
+	} else {
+		dbrouter.fallback.ServeHTTP(w, r)
+	}
+}
+
+func DbHandler(db *gorm.DB, fallback http.Handler) http.HandlerFunc {
+	var dbrouter DbRouter = DbRouter{db : db, fallback: fallback}
+	return dbrouter.ServeHTTP
 }
 
 

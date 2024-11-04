@@ -1,3 +1,4 @@
 .air.toml
 basic_web_app_playlist/*/tmp/
 tmp*
+gophercises/gophercise_2/urlshort/v4_bonus_3/main/shortener.db

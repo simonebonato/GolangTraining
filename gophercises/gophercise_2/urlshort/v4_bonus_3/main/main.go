@@ -8,10 +8,6 @@ import (
 )
 
 func main() {
-	// import and create the db
-	db := urlshort.ShortenerDb
-	urlshort.AddValues(db)
-
 	mux := defaultMux()
 
 	// Build the MapHandler using the mux as the fallback
@@ -40,18 +36,26 @@ func main() {
 
 	flag.Parse()
 
+	// yaml handler
 	yamlFILEHandler, err := urlshort.YAMLFileHandler(*yaml_path, yamlHandler)
 	if err != nil {
 		panic(err)
 	}
 
+	// json handler
 	jsonFILEHandler, err := urlshort.JSONFIleHandler(*json_path, yamlFILEHandler)
 	if err != nil {
 		panic(err)
 	}
 
+	// import and create the db
+	db := urlshort.ShortenerDb
+	urlshort.AddValues(db)
+
+	dbHandler := urlshort.DbHandler(db, jsonFILEHandler)
+
 	fmt.Println("Starting the server on :8080")
-	http.ListenAndServe(":8080", jsonFILEHandler)
+	http.ListenAndServe(":8080", dbHandler)
 }
 
 func defaultMux() *http.ServeMux {
