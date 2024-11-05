@@ -21,7 +21,7 @@ type PathURLJSON struct {
 	URL string `json:"url"`
 }
 
-type Router struct {
+type Router struct  {
 	pathsToUrls map[string]string
 	fallback http.Handler
 }
