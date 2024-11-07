@@ -17,6 +17,8 @@ var defaultHanderTmpl string = `
                 <li><a href="/{{.Chapter}}">{{.Text}}</a></li>
             {{end}}
         </ul>
+        <br><br>
+        <a href="/">Back to the beginning.</a>
     </body>
 </html>`
 

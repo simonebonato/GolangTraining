@@ -3,7 +3,9 @@ package cyoa
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 	"text/template"
 )
 
@@ -34,19 +36,41 @@ func JSONStory(r io.Reader) (Story, error) {
 
 // ------------- http funcs ---------------- 
 
-func NewHandler (story Story) http.Handler {
-	return handler{story:story}
+// we can create a type that can modify a handler, since it gets a pointer to it
+// this is the base of functional programming
+type handlerOption func (*handler)
+
+// function closure, to make the code cleaner and easier for the end user
+func WithTemplate (t *template.Template) handlerOption {
+	return func (h *handler) {
+		h.t = t
+	}
+}
+
+// technically we can create other functions with some optional argument for the arguments
+// eg. func WithDatabase (*db) handlerOption {}
+
+// in the ...handlerOption we can pass in multiple options!
+func NewHandler (story Story, opts ...handlerOption) http.Handler {
+	// the must is to control that the template is prod ready, correct
+	tpl := template.Must(template.New("HTMLStoryTemplate").Parse(defaultHanderTmpl))
+	h := handler{story, tpl}
+
+	for _, opt := range opts {
+		opt(&h)
+	}
+
+	return h
 }
 
 type handler struct {
 	story Story
+	t *template.Template
 }
 
 func (h handler) ServeHTTP (w http.ResponseWriter, r *http.Request) {
-	// the must is to control that the template is prod ready, correct
-	tpl := template.Must(template.New("HTMLStoryTemplate").Parse(defaultHanderTmpl))
-
-	url := r.URL.Path
+	
+	url := strings.TrimSpace(r.URL.Path)
 
 	var render_chapter string
 	if url == "/" {
@@ -55,8 +79,17 @@ func (h handler) ServeHTTP (w http.ResponseWriter, r *http.Request) {
 		render_chapter = url[1:]
 	}
 
-	err := tpl.Execute(w, h.story[render_chapter])
-	if err != nil {
-		panic(err)
+	if chapter, ok := h.story[render_chapter]; ok {
+		err := h.t.Execute(w, chapter)
+
+		if err != nil {
+			log.Printf("%v", err)
+			http.Error(w, "Something went wrong dude...", http.StatusInternalServerError)
+		}
+		return
 	}
+
+	http.Error(w, "Chapter not found...", http.StatusNotFound)
 }
+
+

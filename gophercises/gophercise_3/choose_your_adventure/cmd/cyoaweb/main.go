@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"text/template"
 )
 
 func main() {
@@ -24,7 +25,8 @@ func main() {
 	story, err := cyoa.JSONStory(f)
 	if err != nil {panic(err)}
 
-	story_handler := cyoa.NewHandler(story)
+	tpl := template.Must(template.New("").Parse("Hello"))
+	story_handler := cyoa.NewHandler(story, cyoa.WithTemplate(tpl))
 
 	fmt.Printf("Starting the server on port %d", *port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), story_handler))
