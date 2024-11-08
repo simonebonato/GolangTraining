@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"text/template"
 )
 
@@ -25,9 +26,30 @@ func main() {
 	story, err := cyoa.JSONStory(f)
 	if err != nil {panic(err)}
 
-	tpl := template.Must(template.New("").Parse("Hello"))
-	story_handler := cyoa.NewHandler(story, cyoa.WithTemplate(tpl))
+	
+
+	tpl := template.Must(template.New("").Parse(cyoa.StoryTmpl))
+	// this way we can use the 2 custom options for the story handling
+	story_handler := cyoa.NewHandler(story, cyoa.WithPathFn(newPathFn), cyoa.WithTemplate(tpl))
+
+	// we can make this ServeMux to handle all the requests that start with /story/ to go to the story handler
+	// while all the rest will get the 404 error page
+	mux := http.NewServeMux()
+	mux.Handle("/story/", story_handler)
 
 	fmt.Printf("Starting the server on port %d", *port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), story_handler))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), mux))
+}
+
+
+func newPathFn(r *http.Request) string {
+	url := strings.TrimSpace(r.URL.Path)
+
+	var render_chapter string
+	if url == "/story" || url == "/story/" {
+		render_chapter = "intro"
+	} else {
+		render_chapter = url[len("/story/"):]
+	}
+	return render_chapter
 }
