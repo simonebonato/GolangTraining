@@ -1,16 +1,20 @@
 /*
 Copyright © 2024 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"context"
 	"os"
+	boltDb "todo/boltDB"
 
+	"github.com/boltdb/bolt"
 	"github.com/spf13/cobra"
 )
 
-
+type DbVars struct {
+	load_folder string
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -22,9 +26,20 @@ examples and usage of using your application. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+
+		DbConfig := DbVars{
+			load_folder: "boltDb",
+		}
+
+		db := boltDb.CreateDb(DbConfig.load_folder)
+		cmd.SetContext(context.WithValue(cmd.Context(), "db", db))
+		return nil
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		db := cmd.Context().Value("db").(*bolt.DB)
+		db.Close()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -47,5 +62,3 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
-
-
