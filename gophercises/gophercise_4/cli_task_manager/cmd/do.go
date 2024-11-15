@@ -6,8 +6,9 @@ package cmd
 import (
 	"fmt"
 	"strconv"
+	boltDb "todo/boltDB"
 
-	"github.com/boltdb/bolt"
+	"github.com/asdine/storm"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +18,7 @@ var doCmd = &cobra.Command{
 	Short: "To indicate that a task had been accomplished.",
 	Long:  `Takes in one or more numbers to related tasks.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db := cmd.Context().Value("db").(*bolt.DB)
+		db := cmd.Context().Value("db").(*storm.DB)
 
 		var ids []int
 		for _, arg := range args {
@@ -28,8 +29,16 @@ var doCmd = &cobra.Command{
 				ids = append(ids, id)
 			}
 		}
-		fmt.Println(ids)
-		fmt.Println(db)
+		
+		for _, id := range ids {
+			taskToDelete := boltDb.Task{Key: id}
+			err := db.DeleteStruct(&taskToDelete)
+			if err != nil {
+				fmt.Printf("Failed to delete task with id: %v", id)
+			}
+		}
+
+
 		return nil
 	},
 }

@@ -8,7 +8,7 @@ import (
 	"os"
 	boltDb "todo/boltDB"
 
-	"github.com/boltdb/bolt"
+	"github.com/asdine/storm"
 	"github.com/spf13/cobra"
 )
 
@@ -34,10 +34,11 @@ to quickly create a Cobra application.`,
 
 		db := boltDb.CreateDb(DbConfig.load_folder)
 		cmd.SetContext(context.WithValue(cmd.Context(), "db", db))
+		boltDb.ResetTaskKeys(db)
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		db := cmd.Context().Value("db").(*bolt.DB)
+		db := cmd.Context().Value("db").(*storm.DB)
 		db.Close()
 	},
 }

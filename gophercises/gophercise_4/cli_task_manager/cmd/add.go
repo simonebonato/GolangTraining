@@ -6,7 +6,9 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	boltDb "todo/boltDB"
 
+	"github.com/asdine/storm"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,11 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		task := strings.Join(args, " ")
 		fmt.Println(task)
+
+		newTask := boltDb.Task{Value: task}
+		db := cmd.Context().Value("db").(*storm.DB)
+		boltDb.AddTask(db, &newTask)
+
 	},
 }
 
