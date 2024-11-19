@@ -1,17 +1,45 @@
 package boltDb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/asdine/storm"
+	"github.com/asdine/storm/q"
 )
+
+type KeyHolder interface {
+	GetKey() int
+}
 
 type Task struct {
 	Key   int `storm:"id,increment"`
 	Value string
+}
+
+func (t *Task) GetKey() int {
+	return t.Key
+}
+
+type DoneTask struct {
+	Id       int `storm:"id,increment"`
+	DoneTask Task
+	DoneAt   time.Time `storm:"index"`
+}
+
+func (dt *DoneTask) GetKey() int {
+	return dt.DoneTask.Key
+}
+
+func (dt *DoneTask) Validate() error {
+	if dt.DoneTask.Value == "" {
+		return errors.New("DoneTask.Value must not be empty")
+	}
+	return nil
 }
 
 type TaskSlice []Task
@@ -20,6 +48,17 @@ func (t TaskSlice) String() string {
 	printString := "\nHere are your tasks for today:\n\n"
 	for _, task := range t {
 		printString += fmt.Sprintf("     --> %v  : %v\n", task.Key, task.Value)
+	}
+
+	return printString
+}
+
+type DoneTaskSlice []DoneTask
+
+func (dt DoneTaskSlice) String() string {
+	printString := "\nHere are all the tasks you did so far:\n\n"
+	for _, task := range dt {
+		printString += fmt.Sprintf("     --> %v  : %v\n", task.DoneTask.Value, task.DoneAt)
 	}
 
 	return printString
@@ -47,7 +86,7 @@ func CreateDb(folderName string) (refToDb *storm.DB) {
 	return db
 }
 
-func AddTask(refToDb *storm.DB, newTask *Task) {
+func AddTask(refToDb *storm.DB, newTask KeyHolder) {
 	err := refToDb.Save(newTask)
 	if err != nil {
 		panic(err)
@@ -59,6 +98,10 @@ func ResetTaskKeys(refToDb *storm.DB) error {
 	err := refToDb.All(&allTasks)
 	if err != nil {
 		return err
+	}
+
+	if len(allTasks) == 0 {
+		return nil
 	}
 
 	err = refToDb.Select().Delete(new(Task))
@@ -77,4 +120,25 @@ func ResetTaskKeys(refToDb *storm.DB) error {
 
 	return nil
 
+}
+
+func PrintToDos(refToDb *storm.DB) {
+	var tasks TaskSlice
+	err := refToDb.All(&tasks)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(tasks)
+}
+
+func PrintDoneToDos(refToDb *storm.DB) {
+	var doneTasks DoneTaskSlice
+	err := refToDb.Select(q.True(), q.Gt("DoneAt", time.Now().Add(-24*time.Hour))).OrderBy("DoneAt").Reverse().Find(&doneTasks)
+	if len(doneTasks) == 0 {
+		fmt.Println("There are no tasks here.")
+		return
+	} else if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(doneTasks)
 }

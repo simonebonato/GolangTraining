@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	boltDb "todo/boltDB"
 
 	"github.com/asdine/storm"
@@ -18,19 +17,26 @@ var listCmd = &cobra.Command{
 	Short: "Show all the available TODOs that have not been completed.",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		
+
+		done, err := cmd.Flags().GetBool("done")
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
 		db := cmd.Context().Value("db").(*storm.DB)
 
-		var tasks boltDb.TaskSlice
-		err := db.All(&tasks)
-		if err != nil {
-			log.Fatal(err)
+		// to print the tasks to do
+		if !done {
+			boltDb.PrintToDos(db)
+		} else {
+			boltDb.PrintDoneToDos(db)
 		}
-		
-		fmt.Println(tasks)
 	},
 }
 
 func init() {
+	listCmd.Flags().BoolP("done", "d", false, "Print the tasks that need to be done (done=false) or that were already done (done=true)")
 	rootCmd.AddCommand(listCmd)
+
 }
