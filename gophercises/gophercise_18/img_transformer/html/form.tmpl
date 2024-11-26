@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{ .Script }}
+</head>
+<body>
+    <h2>Upload your image and transform it!</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*">
+
+        <label for="mode">Select Mode:</label>
+        <select name="mode" id="mode">
+            {{range $index, $name := .ModeNames}}
+                <option value="{{$index}}">{{$name}}</option>
+            {{end}}
+        </select>
+
+        <button type="submit">Transform</button>
+    </form>
+</body>
+</html>
+		

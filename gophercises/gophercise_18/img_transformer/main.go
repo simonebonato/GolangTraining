@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/labstack/echo"
@@ -18,20 +19,45 @@ func main() {
 		os.Mkdir("static", 0755)
 	}
 
-	// html to submit a new picture
 	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
-		return c.HTML(http.StatusOK, `
-	        <form action="/upload" method="post" enctype="multipart/form-data">
-	            <input type="file" name="image" accept="image/*">
-	            <button type="submit">Upload</button>
-	        </form>
-	    `)
-	})
 
+	// html to submit a new picture using a form and a POST request
+	e.GET("/", handleInitialForm)
 	e.POST("/upload", handleUpload)
+
 	e.Static("/static", "static")
 	e.Logger.Fatal(e.Start(":3001"))
+}
+
+
+type TemplateFormData struct {
+    Script    string
+    ModeNames []string
+}
+
+func handleInitialForm(c echo.Context) error {
+	errorMessage := c.QueryParam("error")
+	script := ""
+	if errorMessage != "" {
+		// Escape the error message for safe inclusion in JavaScript
+		escapedMessage := template.JSEscapeString(errorMessage)
+		script = fmt.Sprintf(`<script>alert("%s");</script>`, escapedMessage)
+	}
+
+	// create the data to pass to the template
+	data := TemplateFormData{
+        Script:    script,
+        ModeNames: primitive.ModeNames,
+    }
+
+	tmpl, err := template.ParseFiles("html/form.tmpl")
+	if err != nil {
+		panic(err)
+	}
+
+    c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+    return tmpl.Execute(c.Response().Writer, data)
+
 }
 
 func handleUpload(c echo.Context) error {
@@ -39,7 +65,7 @@ func handleUpload(c echo.Context) error {
 	file, err := c.FormFile("image")
 	if err != nil {
 		fmt.Println("Error loading the image!")
-		return err
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
 	}
 
 	// open it into a file
@@ -72,19 +98,35 @@ func handleUpload(c echo.Context) error {
 	// copy the image from the io.Reader to the destination file
 	io.Copy(dst, out)
 
-	// Prepare the HTML response
-	w := c.Response().Writer
-	w.Header().Set("Content-Type", "text/html")
-
-	fmt.Fprintln(w, "<html><body>")
-	fmt.Fprintln(w, "<h1>Transformed Image</h1>")
-
-	// Construct the image URL
-	imgURL := fmt.Sprintf("/static/out_%d.png", timestamp)
-	outString := fmt.Sprintf("<img src='%s' alt='Transformed Image'>", imgURL)
-	fmt.Fprint(w, outString)
-
-	fmt.Fprintln(w, "</body></html>")
+	// call the other handler to display the image!
+	err = htmlDisplayImg(c, timestamp)
+	if err != nil {
+		panic(err)
+	}
 
 	return nil
+}
+
+func htmlDisplayImg(c echo.Context, timestamp int64) error {
+	// Construct the image URL
+	imgURL := fmt.Sprintf("/static/out_%d.png", timestamp)
+
+	// Prepare the HTML response
+	htmlContent := fmt.Sprintf(`
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<title>Transformed Image</title>
+	</head>
+	<body>
+		<h1>Transformed Image</h1>
+		<img src='%s' alt='Transformed Image'>
+		<br>
+		<a href="/">Back to home.</a>
+	</body>		
+	</html>
+`, imgURL)
+
+	return c.HTML(http.StatusOK, htmlContent)
 }

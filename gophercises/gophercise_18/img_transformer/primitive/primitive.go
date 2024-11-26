@@ -25,6 +25,18 @@ const (
 	ModePolygon
 )
 
+var ModeNames = []string{
+	"Combo",
+	"Triangle",
+	"Rect",
+	"Ellipse",
+	"Circle",
+	"Rotated Rect",
+	"Beziers",
+	"Rotated Ellipse",
+	"Polygon",
+}
+
 // Option for the transform function for the mode you want to use,
 // by default mode triangle will be used
 func WithMode(mode Mode) func() []string {
@@ -42,6 +54,7 @@ func WithMode(mode Mode) func() []string {
 // Transform will take the provided image as an io.Reader, apply the primitive transformation,
 // and return an io.Reader with the corresponding transformed image
 func Transform(image io.Reader, numShapes int, opts ...func() []string) (io.Reader, error) {
+	// create a tmp file for the input image
 	in, err := os.CreateTemp("", "in_*.png")
 	if err != nil {
 		return nil, err
