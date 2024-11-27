@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"text/template"
 	"time"
 
@@ -29,10 +30,10 @@ func main() {
 	e.Logger.Fatal(e.Start(":3001"))
 }
 
-
 type TemplateFormData struct {
-    Script    string
-    ModeNames []string
+	Script    string
+	ModeNames map[primitive.Mode]string
+	NShapes   int
 }
 
 func handleInitialForm(c echo.Context) error {
@@ -46,22 +47,36 @@ func handleInitialForm(c echo.Context) error {
 
 	// create the data to pass to the template
 	data := TemplateFormData{
-        Script:    script,
-        ModeNames: primitive.ModeNames,
-    }
+		Script:    script,
+		ModeNames: primitive.ModeNames,
+		NShapes:   100, // default value for the shapes
+	}
 
 	tmpl, err := template.ParseFiles("html/form.tmpl")
 	if err != nil {
 		panic(err)
 	}
 
-    c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
-    return tmpl.Execute(c.Response().Writer, data)
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+	return tmpl.Execute(c.Response().Writer, data)
 
 }
 
 func handleUpload(c echo.Context) error {
-	// load the image from the form
+	// check for the form values needed for the transform
+	// TODO: use this value to actually change the mode
+	mode := c.FormValue("mode")
+	mode_int, _ := strconv.Atoi(mode)
+	mode_mode := primitive.Mode(mode_int)
+
+	// check that n_shapes is an actual number, not text
+	n_shapes_str := c.FormValue("N")
+	N, err := strconv.Atoi(n_shapes_str)
+	if err != nil {
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
+	}
+
+	// load the image from the form, if there is one
 	file, err := c.FormFile("image")
 	if err != nil {
 		fmt.Println("Error loading the image!")
@@ -78,7 +93,7 @@ func handleUpload(c echo.Context) error {
 
 	// transform the image and copy the result
 	out, err := primitive.Transform(
-		f, 20,
+		f, N, primitive.WithMode(mode_mode),
 	)
 	if err != nil {
 		panic(err)

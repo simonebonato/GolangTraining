@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"strconv"
 )
 
 // Defines the shapes used when transforming images
@@ -14,8 +14,8 @@ type Mode int
 
 // Modes supported by the primitive package
 const (
-	ModeCombo Mode = iota
-	ModeTriangle
+	ModeTriangle Mode = iota
+	ModeCombo
 	ModeRect
 	ModeEllipse
 	ModeCircle
@@ -25,23 +25,23 @@ const (
 	ModePolygon
 )
 
-var ModeNames = []string{
-	"Combo",
-	"Triangle",
-	"Rect",
-	"Ellipse",
-	"Circle",
-	"Rotated Rect",
-	"Beziers",
-	"Rotated Ellipse",
-	"Polygon",
+var ModeNames = map[Mode]string{
+	ModeTriangle:       "Triangle",
+	ModeCombo:          "Combo",
+	ModeRect:           "Rect",
+	ModeEllipse:        "Ellipse",
+	ModeCircle:         "Circle",
+	ModeRotatedRect:    "Rotated Rect",
+	ModeBeziers:        "Beziers",
+	ModeRotatedEllipse: "Rotated Ellipse",
+	ModePolygon:        "Polygon",
 }
 
 // Option for the transform function for the mode you want to use,
 // by default mode triangle will be used
 func WithMode(mode Mode) func() []string {
 	return func() []string {
-		return []string{"-m", fmt.Sprintf("%d", mode)}
+		return []string{"-m", strconv.Itoa(int(mode))}
 	}
 }
 
@@ -80,7 +80,7 @@ func Transform(image io.Reader, numShapes int, opts ...func() []string) (io.Read
 	in.Close()
 
 	// run primitive w/ -i in.Name() -o out.Name()
-	_, err = ExecPrimitive(in.Name(), out.Name(), numShapes, ModeCombo)
+	_, err = ExecPrimitive(in.Name(), out.Name(), numShapes, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,10 +106,16 @@ func Transform(image io.Reader, numShapes int, opts ...func() []string) (io.Read
 	return buffer, nil
 }
 
-func ExecPrimitive(input_file string, output_file string, num_shapes int, mode Mode) (string, error) {
-	cmdString := fmt.Sprintf("-i %s -o %s -n %d -m %d", input_file, output_file, num_shapes, mode)
+func ExecPrimitive(input_file string, output_file string, num_shapes int, opts ...func() []string) (string, error) {
+	cmdString := []string{"-i", input_file, "-o", output_file, "-n", strconv.Itoa(num_shapes)}
+
+	for _, opt := range opts {
+		cmdString = append(cmdString, opt()...)
+	}
+
 	fmt.Println(cmdString)
-	cmd := exec.Command("primitive", strings.Fields(cmdString)...)
+
+	cmd := exec.Command("primitive", cmdString...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(string(b))
