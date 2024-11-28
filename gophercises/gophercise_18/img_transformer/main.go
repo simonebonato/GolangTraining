@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -26,6 +27,7 @@ func main() {
 	// html to submit a new picture using a form and a POST request
 	e.GET("/", handleInitialForm)
 	e.POST("/upload", handleUpload)
+	e.GET("/display/:filename", handleHtmlDisplayImg)
 
 	e.Static("/static", "static")
 	e.Logger.Fatal(e.Start(":3001"))
@@ -64,19 +66,6 @@ func handleInitialForm(c echo.Context) error {
 }
 
 func handleUpload(c echo.Context) error {
-	// check for the form values needed for the transform
-	mode := c.FormValue("mode")
-	mode_int, _ := strconv.Atoi(mode)
-	mode_mode := primitive.Mode(mode_int)
-
-	// check that n_shapes is an actual number, not text
-	n_shapes_str := c.FormValue("N")
-	N, err := strconv.Atoi(n_shapes_str)
-	if err != nil {
-		fmt.Println("Error loading the image!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
-	}
-
 	// load the image from the form, if there is one
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -93,6 +82,33 @@ func handleUpload(c echo.Context) error {
 	}
 	defer f.Close()
 
+	// to check which transform has been triggered
+	transformType := c.FormValue("transform")
+
+	if transformType == "primitive" {
+		err = handlePrimitiveTransform(c, f, file_extension)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func handlePrimitiveTransform(c echo.Context, f io.Reader, file_extension string) error {
+	// check for the form values needed for the transform
+	mode := c.FormValue("mode")
+	mode_int, _ := strconv.Atoi(mode)
+	mode_mode := primitive.Mode(mode_int)
+
+	// check that n_shapes is an actual number, not text
+	n_shapes_str := c.FormValue("N")
+	N, err := strconv.Atoi(n_shapes_str)
+	if err != nil {
+		fmt.Println("Error loading the image!")
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
+	}
+
 	// transform the image and copy the result
 	out, err := primitive.Transform(
 		f, N, file_extension, primitive.WithMode(mode_mode),
@@ -101,22 +117,23 @@ func handleUpload(c echo.Context) error {
 		panic(err)
 	}
 
+	// now save the image, then display it
 	// create a file in the static folder
+	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
 	timestamp := time.Now().UnixNano()
-	filename := fmt.Sprintf("static/out_%d%s", timestamp, file_extension)
+	filename := fmt.Sprintf("static/primitive_out_%d%s", timestamp, file_extension)
 
-	// Create destination file in the static folder
-	dst, err := os.Create(filename)
+	out_file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
 
-	// copy the image from the io.Reader to the destination file
-	io.Copy(dst, out)
+	io.Copy(out_file, out)
+
+	relativeFilename := strings.TrimPrefix(filename, "static/")
 
 	// call the other handler to display the image!
-	err = htmlDisplayImg(c, timestamp, file_extension)
+	err = c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
 	if err != nil {
 		panic(err)
 	}
@@ -124,9 +141,9 @@ func handleUpload(c echo.Context) error {
 	return nil
 }
 
-func htmlDisplayImg(c echo.Context, timestamp int64, extension string) error {
-	// Construct the image URL
-	imgURL := fmt.Sprintf("/static/out_%d%s", timestamp, extension)
+func handleHtmlDisplayImg(c echo.Context) error {
+
+	filename := c.Param("filename")
 
 	// Prepare the HTML response
 	htmlContent := fmt.Sprintf(`
@@ -138,12 +155,12 @@ func htmlDisplayImg(c echo.Context, timestamp int64, extension string) error {
 	</head>
 	<body>
 		<h1>Transformed Image</h1>
-		<img src='%s' alt='Transformed Image'>
+		<img src='/static/%s' alt='Transformed Image'>
 		<br>
 		<a href="/">Back to home.</a>
 	</body>		
 	</html>
-`, imgURL)
+`, filename)
 
 	return c.HTML(http.StatusOK, htmlContent)
 }
