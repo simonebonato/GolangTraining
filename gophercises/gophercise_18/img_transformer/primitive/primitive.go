@@ -53,9 +53,9 @@ func WithMode(mode Mode) func() []string {
 
 // Transform will take the provided image as an io.Reader, apply the primitive transformation,
 // and return an io.Reader with the corresponding transformed image
-func Transform(image io.Reader, numShapes int, opts ...func() []string) (io.Reader, error) {
+func Transform(image io.Reader, numShapes int, file_extension string, opts ...func() []string) (io.Reader, error) {
 	// create a tmp file for the input image
-	in, err := os.CreateTemp("", "in_*.png")
+	in, err := os.CreateTemp("", fmt.Sprintf("in_*%s", file_extension))
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func Transform(image io.Reader, numShapes int, opts ...func() []string) (io.Read
 	defer os.Remove(in.Name())
 
 	// do the same for the output file
-	out, err := os.CreateTemp("", "out_*.png")
+	out, err := os.CreateTemp("", fmt.Sprintf("out_*%s", file_extension))
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +112,6 @@ func ExecPrimitive(input_file string, output_file string, num_shapes int, opts .
 	for _, opt := range opts {
 		cmdString = append(cmdString, opt()...)
 	}
-
-	fmt.Println(cmdString)
 
 	cmd := exec.Command("primitive", cmdString...)
 	b, err := cmd.CombinedOutput()

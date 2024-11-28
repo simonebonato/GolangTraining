@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"text/template"
 	"time"
@@ -64,7 +65,6 @@ func handleInitialForm(c echo.Context) error {
 
 func handleUpload(c echo.Context) error {
 	// check for the form values needed for the transform
-	// TODO: use this value to actually change the mode
 	mode := c.FormValue("mode")
 	mode_int, _ := strconv.Atoi(mode)
 	mode_mode := primitive.Mode(mode_int)
@@ -73,6 +73,7 @@ func handleUpload(c echo.Context) error {
 	n_shapes_str := c.FormValue("N")
 	N, err := strconv.Atoi(n_shapes_str)
 	if err != nil {
+		fmt.Println("Error loading the image!")
 		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
 	}
 
@@ -82,6 +83,7 @@ func handleUpload(c echo.Context) error {
 		fmt.Println("Error loading the image!")
 		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
 	}
+	file_extension := filepath.Ext(file.Filename)
 
 	// open it into a file
 	f, err := file.Open()
@@ -93,7 +95,7 @@ func handleUpload(c echo.Context) error {
 
 	// transform the image and copy the result
 	out, err := primitive.Transform(
-		f, N, primitive.WithMode(mode_mode),
+		f, N, file_extension, primitive.WithMode(mode_mode),
 	)
 	if err != nil {
 		panic(err)
@@ -101,7 +103,7 @@ func handleUpload(c echo.Context) error {
 
 	// create a file in the static folder
 	timestamp := time.Now().UnixNano()
-	filename := fmt.Sprintf("static/out_%d.png", timestamp)
+	filename := fmt.Sprintf("static/out_%d%s", timestamp, file_extension)
 
 	// Create destination file in the static folder
 	dst, err := os.Create(filename)
@@ -114,7 +116,7 @@ func handleUpload(c echo.Context) error {
 	io.Copy(dst, out)
 
 	// call the other handler to display the image!
-	err = htmlDisplayImg(c, timestamp)
+	err = htmlDisplayImg(c, timestamp, file_extension)
 	if err != nil {
 		panic(err)
 	}
@@ -122,9 +124,9 @@ func handleUpload(c echo.Context) error {
 	return nil
 }
 
-func htmlDisplayImg(c echo.Context, timestamp int64) error {
+func htmlDisplayImg(c echo.Context, timestamp int64, extension string) error {
 	// Construct the image URL
-	imgURL := fmt.Sprintf("/static/out_%d.png", timestamp)
+	imgURL := fmt.Sprintf("/static/out_%d%s", timestamp, extension)
 
 	// Prepare the HTML response
 	htmlContent := fmt.Sprintf(`
