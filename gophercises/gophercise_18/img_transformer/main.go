@@ -15,8 +15,6 @@ import (
 	"github.com/labstack/echo"
 )
 
-var imagePath string
-
 func main() {
 
 	// create a static directory used to serve files to the server
@@ -29,8 +27,6 @@ func main() {
 	// html to submit a new picture using a form and a POST request
 	e.GET("/", handleInitialForm)
 	e.POST("/upload", handleUpload)
-	// TODO: add something like this for handling the transform and remove the global variable
-	// e.POST("/transform/:primitive:filename", handlePrimitiveTransform)
 	e.GET("/display/:filename", handleHtmlDisplayImg)
 
 	e.Static("/static", "static")
@@ -71,8 +67,6 @@ func handleInitialForm(c echo.Context) error {
 
 func handleUpload(c echo.Context) error {
 
-	imagePath = ""
-
 	// load the image from the form, if there is one
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -102,14 +96,14 @@ func handleUpload(c echo.Context) error {
 		return err
 	}
 
-	// now this can technically be used everywhere in these functions since it is a global variable
-	imagePath = img_filename
+	// Store imagePath in the context
+	c.Set("imagePath", img_filename)
 
 	// to check which transform has been triggered
 	transformType := c.FormValue("transform")
 
 	if transformType == "primitive" {
-		err = handlePrimitiveTransform(c)
+		err = applyPrimitiveTransform(c)
 		if err != nil {
 			return err
 		}
@@ -118,8 +112,9 @@ func handleUpload(c echo.Context) error {
 	return nil
 }
 
-func handlePrimitiveTransform(c echo.Context) error {
+func applyPrimitiveTransform(c echo.Context) error {
 	// check if the image path is set
+	imagePath := c.Get("imagePath").(string)
 	if imagePath == "" {
 		fmt.Println("No image loaded!")
 		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
