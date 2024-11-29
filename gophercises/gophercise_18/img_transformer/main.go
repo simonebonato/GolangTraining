@@ -15,6 +15,8 @@ import (
 	"github.com/labstack/echo"
 )
 
+var imagePath string
+
 func main() {
 
 	// create a static directory used to serve files to the server
@@ -27,6 +29,8 @@ func main() {
 	// html to submit a new picture using a form and a POST request
 	e.GET("/", handleInitialForm)
 	e.POST("/upload", handleUpload)
+	// TODO: add something like this for handling the transform and remove the global variable
+	// e.POST("/transform/:primitive:filename", handlePrimitiveTransform)
 	e.GET("/display/:filename", handleHtmlDisplayImg)
 
 	e.Static("/static", "static")
@@ -66,6 +70,9 @@ func handleInitialForm(c echo.Context) error {
 }
 
 func handleUpload(c echo.Context) error {
+
+	imagePath = ""
+
 	// load the image from the form, if there is one
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -82,11 +89,27 @@ func handleUpload(c echo.Context) error {
 	}
 	defer f.Close()
 
+	// save the image locally and store the path in imagePath
+	img_filename := createStaticTimestampFilename(file_extension, "")
+	tmp_file, err := os.Create(img_filename)
+	if err != nil {
+		return err
+	}
+	defer tmp_file.Close()
+
+	_, err = io.Copy(tmp_file, f)
+	if err != nil {
+		return err
+	}
+
+	// now this can technically be used everywhere in these functions since it is a global variable
+	imagePath = img_filename
+
 	// to check which transform has been triggered
 	transformType := c.FormValue("transform")
 
 	if transformType == "primitive" {
-		err = handlePrimitiveTransform(c, f, file_extension)
+		err = handlePrimitiveTransform(c)
 		if err != nil {
 			return err
 		}
@@ -95,7 +118,21 @@ func handleUpload(c echo.Context) error {
 	return nil
 }
 
-func handlePrimitiveTransform(c echo.Context, f io.Reader, file_extension string) error {
+func handlePrimitiveTransform(c echo.Context) error {
+	// check if the image path is set
+	if imagePath == "" {
+		fmt.Println("No image loaded!")
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
+	}
+
+	// read the image into a io.Reader for the transform method
+	f, err := os.Open(imagePath)
+	file_extension := filepath.Ext(imagePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
 	// check for the form values needed for the transform
 	mode := c.FormValue("mode")
 	mode_int, _ := strconv.Atoi(mode)
@@ -117,28 +154,29 @@ func handlePrimitiveTransform(c echo.Context, f io.Reader, file_extension string
 		panic(err)
 	}
 
-	// now save the image, then display it
-	// create a file in the static folder
+	// now save the image, then display it create a file in the static folder
 	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
-	timestamp := time.Now().UnixNano()
-	filename := fmt.Sprintf("static/primitive_out_%d%s", timestamp, file_extension)
-
+	filename := createStaticTimestampFilename(file_extension, "primitive_")
 	out_file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
-
 	io.Copy(out_file, out)
 
-	relativeFilename := strings.TrimPrefix(filename, "static/")
-
 	// call the other handler to display the image!
+	relativeFilename := strings.TrimPrefix(filename, "static/")
 	err = c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
 	if err != nil {
 		panic(err)
 	}
 
 	return nil
+}
+
+func createStaticTimestampFilename(file_extension string, prefix string) string {
+	timestamp := time.Now().UnixNano()
+	filename := fmt.Sprintf("static/%sout_%d%s", prefix, timestamp, file_extension)
+	return filename
 }
 
 func handleHtmlDisplayImg(c echo.Context) error {
