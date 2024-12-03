@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"img_transformer/primitive"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,9 +35,10 @@ func main() {
 }
 
 type TemplateFormData struct {
-	Script    string
-	ModeNames map[primitive.Mode]string
-	NShapes   int
+	Script        string
+	ModeNames     map[primitive.Mode]string
+	NShapes       int
+	LastImagePath string
 }
 
 func handleInitialForm(c echo.Context) error {
@@ -48,11 +50,19 @@ func handleInitialForm(c echo.Context) error {
 		script = fmt.Sprintf(`<script>alert("%s");</script>`, escapedMessage)
 	}
 
+	// get the cookie for the image path
+	lastImagePath := ""
+	cookie, err := c.Cookie("imagePath")
+	if err == nil {
+		lastImagePath = cookie.Value
+	}
+
 	// create the data to pass to the template
 	data := TemplateFormData{
-		Script:    script,
-		ModeNames: primitive.ModeNames,
-		NShapes:   100, // default value for the shapes
+		Script:        script,
+		ModeNames:     primitive.ModeNames,
+		NShapes:       100, // default value for the shapes
+		LastImagePath: lastImagePath,
 	}
 
 	tmpl, err := template.ParseFiles("html/form.tmpl")
@@ -67,48 +77,76 @@ func handleInitialForm(c echo.Context) error {
 
 func handleUpload(c echo.Context) error {
 
-	// load the image from the form, if there is one
-	file, err := c.FormFile("image")
-	if err != nil {
-		fmt.Println("Error loading the image!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
-	}
-	file_extension := filepath.Ext(file.Filename)
+	var file_extension string
+	var f multipart.File
+	var img_filename string
 
-	// open it into a file
-	f, err := file.Open()
-	if err != nil {
-		fmt.Println("Error opening the src!")
-		return err
-	}
-	defer f.Close()
+	useLastImage := c.FormValue("useLastImage") == "true"
 
-	// save the image locally and store the path in imagePath
-	img_filename := createStaticTimestampFilename(file_extension, "")
-	tmp_file, err := os.Create(img_filename)
-	if err != nil {
-		return err
-	}
-	defer tmp_file.Close()
+	if useLastImage {
+		existingPath, _ := c.Cookie("imagePath")
+		f, err := os.Open(existingPath.Value)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		img_filename = existingPath.Value
 
-	_, err = io.Copy(tmp_file, f)
-	if err != nil {
-		return err
+	} else {
+		// load the image from the form, if there is one
+		file, err := c.FormFile("image")
+		if err != nil {
+			fmt.Println("Error loading the image!")
+			return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
+		}
+		file_extension = filepath.Ext(file.Filename)
+
+		// open it into a file
+		f, err = file.Open()
+		if err != nil {
+			fmt.Println("Error opening the src!")
+			return err
+		}
+		defer f.Close()
+
+		// save the image locally and store the path in imagePath
+		img_filename = createStaticTimestampFilename(file_extension, "")
+		tmp_file, err := os.Create(img_filename)
+		if err != nil {
+			return err
+		}
+		defer tmp_file.Close()
+
+		_, err = io.Copy(tmp_file, f)
+		if err != nil {
+			fmt.Println("Error copying the image here!!!!")
+			return err
+		}
 	}
 
-	// Store imagePath in the context
+	// Store imagePath in the context and in a cookie
 	c.Set("imagePath", img_filename)
+	writeCookie(c, img_filename)
 
 	// to check which transform has been triggered
 	transformType := c.FormValue("transform")
 
 	if transformType == "primitive" {
-		err = applyPrimitiveTransform(c)
+		err := applyPrimitiveTransform(c)
 		if err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func writeCookie(c echo.Context, cookieName string) error {
+	cookie := new(http.Cookie)
+	cookie.Name = "imagePath"
+	cookie.Value = cookieName
+	cookie.Expires = time.Now().Add(24 * time.Hour)
+	c.SetCookie(cookie)
 	return nil
 }
 

@@ -5,6 +5,32 @@
 </head>
 <body>
     <h2>Upload your image and transform it!</h2>
+
+
+    {{if .LastImagePath}}
+        <p>Previously uploaded image:</p>
+        <img src="{{ .LastImagePath }}" alt="Last uploaded image" width="200">
+
+        <form action="/upload" method="post">
+            <input type="hidden" name="useLastImage" value="true">
+
+            <label for="mode">Select Mode:</label>
+            <select name="mode" id="mode">
+                {{range $index, $name := .ModeNames}}
+                    <option value="{{$index}}">{{$name}}</option>
+                {{end}}
+            </select>
+
+            <label for="N">N shapes:</label>
+            <input type="text" id="N" name="N" value={{ .NShapes }}>
+
+            <button type="submit" name="transform" value="primitive">Transform with primitive!</button>
+        </form>
+
+        <br><h3>Or upload a new image:</h3>
+    {{end}}
+
+
     <form action="/upload" method="post" enctype="multipart/form-data">
         <input type="file" name="image" accept="image/*">
 
@@ -20,6 +46,8 @@
 
         <button type="submit" name="transform" value="primitive">Transform with primitive!</button>
     </form>
+
+
 </body>
 </html>
 		
