@@ -1,53 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     {{ .Script }}
+    <style>
+        /* Rocket launching animation */
+        .rocket {
+            display: none; /* Hidden by default */
+            width: 24px;
+            height: 24px;
+            position: relative;
+            animation: launch 2s ease-in-out infinite;
+            margin-left: 10px; /* Adjust spacing from the button */
+        }
+
+        @keyframes launch {
+            0% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+            100% {
+                transform: translateY(0);
+            }
+        }
+    </style>
+
+    <script>
+        // JavaScript to handle form submission and show the rocket animation
+        function showLoading(button) {
+            const rocket = button.querySelector('.rocket');
+            rocket.style.display = 'inline-block';
+        }
+    </script>
 </head>
+
 <body>
     <h2>Upload your image and transform it!</h2>
 
-
-    {{if .LastImagePath}}
+    {{ if .LastImagePath }}
         <p>Previously uploaded image:</p>
         <img src="{{ .LastImagePath }}" alt="Last uploaded image" width="200">
 
-        <form action="/upload" method="post">
+        <form action="/upload" method="post" onsubmit="showLoading(this.querySelector('button'))">
             <input type="hidden" name="useLastImage" value="true">
 
             <label for="mode">Select Mode:</label>
             <select name="mode" id="mode">
-                {{range $index, $name := .ModeNames}}
-                    <option value="{{$index}}">{{$name}}</option>
-                {{end}}
+                {{ range $index, $name := .ModeNames }}
+                    <option value="{{ $index }}">{{ $name }}</option>
+                {{ end }}
             </select>
 
             <label for="N">N shapes:</label>
-            <input type="text" id="N" name="N" value={{ .NShapes }}>
+            <input type="text" id="N" name="N" value="{{ .NShapes }}">
 
-            <button type="submit" name="transform" value="primitive">Transform with primitive!</button>
+            <button type="submit" name="transform" value="primitive">
+                Transform with primitive!
+                <svg class="rocket" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                </svg>
+            </button>
         </form>
 
-        <br><h3>Or upload a new image:</h3>
-    {{end}}
+        <br>
+        <h3>Or upload a new image:</h3>
+    {{ end }}
 
-
-    <form action="/upload" method="post" enctype="multipart/form-data">
+    <form action="/upload" method="post" enctype="multipart/form-data" onsubmit="showLoading(this.querySelector('button'))">
         <input type="file" name="image" accept="image/*">
 
         <label for="mode">Select Mode:</label>
         <select name="mode" id="mode">
-            {{range $index, $name := .ModeNames}}
-                <option value="{{$index}}">{{$name}}</option>
-            {{end}}
+            {{ range $index, $name := .ModeNames }}
+                <option value="{{ $index }}">{{ $name }}</option>
+            {{ end }}
         </select>
 
         <label for="N">N shapes:</label>
-        <input type="text" id="N" name="N" value={{ .NShapes}}>
+        <input type="text" id="N" name="N" value="{{ .NShapes }}">
 
-        <button type="submit" name="transform" value="primitive">Transform with primitive!</button>
+        <button type="submit" name="transform" value="primitive">
+            Transform with primitive!
+            <svg class="rocket" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+            </svg>
+        </button>
     </form>
-
-
 </body>
+
 </html>
-		
