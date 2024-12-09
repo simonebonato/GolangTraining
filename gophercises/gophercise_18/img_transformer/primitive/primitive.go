@@ -1,8 +1,8 @@
 package primitive
 
 import (
-	"bytes"
 	"fmt"
+	"img_transformer/utils"
 	"io"
 	"os"
 	"os/exec"
@@ -54,19 +54,14 @@ func WithMode(mode Mode) func() []string {
 // Transform will take the provided image as an io.Reader, apply the primitive transformation,
 // and return an io.Reader with the corresponding transformed image
 func Transform(image io.Reader, numShapes int, file_extension string, opts ...func() []string) (io.Reader, error) {
-	// create a tmp file for the input image
-	in, err := os.CreateTemp("", fmt.Sprintf("in_*%s", file_extension))
+
+	in, out, err := utils.CreateInputOutputForTransform(file_extension)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
+
 	// to make sure that the file is deleted at the end
 	defer os.Remove(in.Name())
-
-	// do the same for the output file
-	out, err := os.CreateTemp("", fmt.Sprintf("out_*%s", file_extension))
-	if err != nil {
-		return nil, err
-	}
 	defer os.Remove(out.Name())
 
 	// read image into input files
@@ -86,20 +81,8 @@ func Transform(image io.Reader, numShapes int, file_extension string, opts ...fu
 	}
 	// for flushing
 	out.Close()
-
-	// Reopen 'out' for reading
-	out, err = os.Open(out.Name())
-	if err != nil {
-		return nil, err
-	}
+	out, buffer, err := utils.ReadTransformOutput(out)
 	defer out.Close()
-
-	// Read from 'outputFile' into the buffer
-	buffer := new(bytes.Buffer)
-	_, err = io.Copy(buffer, out)
-	if err != nil {
-		return nil, err
-	}
 
 	// we return the buffer, because IT CAN become a Reader
 	// and we do not return the output file because it is deleted after the program runs

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"img_transformer/legoize"
 	"img_transformer/primitive"
 	"io"
 	"mime/multipart"
@@ -136,6 +137,11 @@ func handleUpload(c echo.Context) error {
 		if err != nil {
 			return err
 		}
+	} else if transformType == "lego" {
+		err := applyLegoTransform(c)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -147,6 +153,65 @@ func writeCookie(c echo.Context, cookieName string) error {
 	cookie.Value = cookieName
 	cookie.Expires = time.Now().Add(24 * time.Hour)
 	c.SetCookie(cookie)
+	return nil
+}
+
+func applyLegoTransform(c echo.Context) error {
+	// TODO: mode this part into a function,, and put it wherever needed
+	// check if the image path is set
+	imagePath := c.Get("imagePath").(string)
+	if imagePath == "" {
+		fmt.Println("No image loaded!")
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
+	}
+
+	// read the image into a io.Reader for the transform method
+	f, err := os.Open(imagePath)
+	file_extension := filepath.Ext(imagePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// extract the parameters for the lego transform
+	lego_colors_str := c.FormValue("lego_colors")
+	lego_colors, err := strconv.Atoi(lego_colors_str)
+	if err != nil {
+		fmt.Println("Error with lego colors!")
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+Lego+colors+as+integer")
+	}
+
+	lego_size_str := c.FormValue("lego_size")
+	lego_size, err := strconv.Atoi(lego_size_str)
+	if err != nil {
+		fmt.Println("Error with lego size!")
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+Lego+size+as+integer")
+	}
+
+	// transform the image and copy the result
+	out, err := legoize.Transform(
+		f, lego_colors, file_extension, legoize.WithSize(lego_size),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// now save the image, then display it create a file in the static folder
+	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
+	filename := createStaticTimestampFilename(file_extension, "primitive_")
+	out_file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	io.Copy(out_file, out)
+
+	// call the other handler to display the image!
+	relativeFilename := strings.TrimPrefix(filename, "static/")
+	err = c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
+	if err != nil {
+		panic(err)
+	}
+
 	return nil
 }
 
@@ -175,7 +240,7 @@ func applyPrimitiveTransform(c echo.Context) error {
 	n_shapes_str := c.FormValue("N")
 	N, err := strconv.Atoi(n_shapes_str)
 	if err != nil {
-		fmt.Println("Error loading the image!")
+		fmt.Println("Error with N shapes for primitive!")
 		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
 	}
 
