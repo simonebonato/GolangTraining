@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -132,16 +133,15 @@ func handleUpload(c echo.Context) error {
 	// to check which transform has been triggered
 	transformType := c.FormValue("transform")
 
+	var err error
 	if transformType == "primitive" {
-		err := applyPrimitiveTransform(c)
-		if err != nil {
-			return err
-		}
+		err = applyPrimitiveTransform(c)
 	} else if transformType == "lego" {
-		err := applyLegoTransform(c)
-		if err != nil {
-			return err
-		}
+		err = applyLegoTransform(c)
+	}
+
+	if err != nil {
+		return c.Redirect(http.StatusSeeOther, "/?error="+url.QueryEscape(err.Error()))
 	}
 
 	return nil
@@ -156,7 +156,7 @@ func writeCookie(c echo.Context, cookieName string) error {
 	return nil
 }
 
-func extractImage(c echo.Context) (*os.File, string, error) {
+func getImageFromContext(c echo.Context) (*os.File, string, error) {
 	// check if the image path is set
 	imagePath, ok := c.Get("imagePath").(string)
 	if !ok || imagePath == "" {
@@ -173,43 +173,7 @@ func extractImage(c echo.Context) (*os.File, string, error) {
 	return f, file_extension, nil
 }
 
-func applyLegoTransform(c echo.Context) error {
-	// check if the image path is set
-	f, file_extension, err := extractImage(c)
-	if err != nil {
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
-	}
-	defer f.Close()
-
-	// extract the parameters for the lego transform
-	lego_colors_str := c.FormValue("lego_colors")
-	lego_colors, err := strconv.Atoi(lego_colors_str)
-	if err != nil {
-		fmt.Println("Error with lego colors!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+Lego+colors+as+integer")
-	}
-
-	lego_size_str := c.FormValue("lego_size")
-	lego_size, err := strconv.Atoi(lego_size_str)
-	if err != nil {
-		fmt.Println("Error with lego size!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+Lego+size+as+integer")
-	}
-
-	// transform the image and copy the result
-	out, err := legoize.Transform(
-		f, lego_colors, file_extension, legoize.WithSize(lego_size),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	// now save the image, then display it create a file in the static folder
-	return saveAndRedirect(c, out, file_extension, "lego")
-}
-
 func saveAndRedirect(c echo.Context, out io.Reader, file_extension string, prefix string) error {
-	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
 	filename := createStaticTimestampFilename(file_extension, prefix)
 	out_file, err := os.Create(filename)
 	if err != nil {
@@ -222,37 +186,59 @@ func saveAndRedirect(c echo.Context, out io.Reader, file_extension string, prefi
 	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
 }
 
-func applyPrimitiveTransform(c echo.Context) error {
-	// check if the image path is set
-	f, file_extension, err := extractImage(c)
+type TransformFunc func(input io.Reader, ext string) (io.Reader, error)
+
+func processTransform(c echo.Context, transform TransformFunc, prefix string) error {
+	f, ext, err := getImageFromContext(c)
 	if err != nil {
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
+		return c.Redirect(http.StatusSeeOther, "/?error="+url.QueryEscape(err.Error()))
 	}
 	defer f.Close()
 
-	// check for the form values needed for the transform
-	mode := c.FormValue("mode")
-	mode_int, _ := strconv.Atoi(mode)
-	mode_mode := primitive.Mode(mode_int)
-
-	// check that n_shapes is an actual number, not text
-	n_shapes_str := c.FormValue("N")
-	N, err := strconv.Atoi(n_shapes_str)
+	out, err := transform(f, ext)
 	if err != nil {
-		fmt.Println("Error with N shapes for primitive!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+set+N+shapes+as+integer")
+		return err
 	}
 
-	// transform the image and copy the result
-	out, err := primitive.Transform(
-		f, N, file_extension, primitive.WithMode(mode_mode),
-	)
-	if err != nil {
-		panic(err)
+	return saveAndRedirect(c, out, ext, prefix)
+}
+
+func applyLegoTransform(c echo.Context) error {
+	legoColorsStr := c.FormValue("lego_colors")
+	legoSizeStr := c.FormValue("lego_size")
+
+	legoColors, err := strconv.Atoi(legoColorsStr)
+	if err != nil { return fmt.Errorf("lego color must be integer")
 	}
 
-	// now save the image, then display it create a file in the static folder
-	return saveAndRedirect(c, out, file_extension, "primitive")
+	legoSize, err := strconv.Atoi(legoSizeStr)
+	if err != nil { return fmt.Errorf("lego size must be integer")
+	}
+
+	transformFunc := func(input io.Reader, ext string) (io.Reader, error) {
+		return legoize.Transform(input, legoColors, ext, legoize.WithSize(legoSize))
+	}
+
+	return processTransform(c, transformFunc, "lego")
+}
+
+func applyPrimitiveTransform(c echo.Context) error {
+	modeStr := c.FormValue("mode")
+	nShapesStr := c.FormValue("N")
+
+	modeVal, err := strconv.Atoi(modeStr)
+	if err != nil { return fmt.Errorf("select a valid mode")
+	}
+
+	N, err := strconv.Atoi(nShapesStr)
+	if err != nil { return fmt.Errorf("the number of shapes must be integer")
+	}
+
+	transformFunc := func(input io.Reader, ext string) (io.Reader, error) {
+		return primitive.Transform(input, N, ext, primitive.WithMode(primitive.Mode(modeVal)))
+	}
+
+	return processTransform(c, transformFunc, "primitive")
 }
 
 func createStaticTimestampFilename(file_extension string, prefix string) string {
