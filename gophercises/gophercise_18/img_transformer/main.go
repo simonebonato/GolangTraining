@@ -156,20 +156,28 @@ func writeCookie(c echo.Context, cookieName string) error {
 	return nil
 }
 
-func applyLegoTransform(c echo.Context) error {
-	// TODO: mode this part into a function,, and put it wherever needed
+func extractImage(c echo.Context) (*os.File, string, error) {
 	// check if the image path is set
-	imagePath := c.Get("imagePath").(string)
-	if imagePath == "" {
-		fmt.Println("No image loaded!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
+	imagePath, ok := c.Get("imagePath").(string)
+	if !ok || imagePath == "" {
+		return nil, "", fmt.Errorf("no image loaded")
 	}
 
 	// read the image into a io.Reader for the transform method
 	f, err := os.Open(imagePath)
-	file_extension := filepath.Ext(imagePath)
 	if err != nil {
-		return err
+		return nil, "", fmt.Errorf("no image loaded")
+	}
+	file_extension := filepath.Ext(imagePath)
+
+	return f, file_extension, nil
+}
+
+func applyLegoTransform(c echo.Context) error {
+	// check if the image path is set
+	f, file_extension, err := extractImage(c)
+	if err != nil {
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
 	}
 	defer f.Close()
 
@@ -217,17 +225,9 @@ func applyLegoTransform(c echo.Context) error {
 
 func applyPrimitiveTransform(c echo.Context) error {
 	// check if the image path is set
-	imagePath := c.Get("imagePath").(string)
-	if imagePath == "" {
-		fmt.Println("No image loaded!")
-		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
-	}
-
-	// read the image into a io.Reader for the transform method
-	f, err := os.Open(imagePath)
-	file_extension := filepath.Ext(imagePath)
+	f, file_extension, err := extractImage(c)
 	if err != nil {
-		return err
+		return c.Redirect(http.StatusSeeOther, "/?error=Please+select+an+image+to+upload")
 	}
 	defer f.Close()
 
