@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"img_transformer/legoize"
 	"img_transformer/primitive"
+	"img_transformer/utils"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -33,7 +36,33 @@ func main() {
 	e.GET("/display/:filename", handleHtmlDisplayImg)
 
 	e.Static("/static", "static")
-	e.Logger.Fatal(e.Start(":3001"))
+
+	// Channel to listen for termination signals
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := e.Start(":3001"); err != nil && err != http.ErrServerClosed {
+			e.Logger.Fatal("Shutting down the server")
+		}
+	}()
+
+	// Wait for termination signal
+	<-quit
+	fmt.Println("Shutting down server gracefully...")
+
+	// Cleanup static folder
+	if err := utils.CleanStaticFolder("static"); err != nil {
+		fmt.Println("Error cleaning static folder:", err)
+	}
+
+	// Shut down Echo server
+	if err := e.Shutdown(nil); err != nil {
+		e.Logger.Fatal(err)
+	}
+
+	fmt.Println("Server shut down gracefully.")
 }
 
 type TemplateFormData struct {
@@ -208,11 +237,13 @@ func applyLegoTransform(c echo.Context) error {
 	legoSizeStr := c.FormValue("lego_size")
 
 	legoColors, err := strconv.Atoi(legoColorsStr)
-	if err != nil { return fmt.Errorf("lego color must be integer")
+	if err != nil {
+		return fmt.Errorf("lego color must be integer")
 	}
 
 	legoSize, err := strconv.Atoi(legoSizeStr)
-	if err != nil { return fmt.Errorf("lego size must be integer")
+	if err != nil {
+		return fmt.Errorf("lego size must be integer")
 	}
 
 	transformFunc := func(input io.Reader, ext string) (io.Reader, error) {
@@ -227,11 +258,13 @@ func applyPrimitiveTransform(c echo.Context) error {
 	nShapesStr := c.FormValue("N")
 
 	modeVal, err := strconv.Atoi(modeStr)
-	if err != nil { return fmt.Errorf("select a valid mode")
+	if err != nil {
+		return fmt.Errorf("select a valid mode")
 	}
 
 	N, err := strconv.Atoi(nShapesStr)
-	if err != nil { return fmt.Errorf("the number of shapes must be integer")
+	if err != nil {
+		return fmt.Errorf("the number of shapes must be integer")
 	}
 
 	transformFunc := func(input io.Reader, ext string) (io.Reader, error) {

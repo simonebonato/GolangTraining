@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func CreateInputOutputForTransform(file_extension string) (*os.File, *os.File, error) {
@@ -23,7 +24,7 @@ func CreateInputOutputForTransform(file_extension string) (*os.File, *os.File, e
 	return in, out, nil
 }
 
-func ReadTransformOutput(out *os.File) (*os.File, *bytes.Buffer, error){
+func ReadTransformOutput(out *os.File) (*os.File, *bytes.Buffer, error) {
 	// Reopen 'out' for reading
 	out, err := os.Open(out.Name())
 	if err != nil {
@@ -38,4 +39,22 @@ func ReadTransformOutput(out *os.File) (*os.File, *bytes.Buffer, error){
 	}
 
 	return out, buffer, err
+}
+
+// Function to clean the static folder
+func CleanStaticFolder(folder string) error {
+	files, err := os.ReadDir(folder)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err := os.Remove(filepath.Join(folder, file.Name()))
+		if err != nil {
+			return fmt.Errorf("failed to remove file %s: %w", file.Name(), err)
+		}
+	}
+
+	fmt.Println("Static folder cleaned up.")
+	return nil
 }
