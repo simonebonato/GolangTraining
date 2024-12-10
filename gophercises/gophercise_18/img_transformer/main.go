@@ -205,8 +205,12 @@ func applyLegoTransform(c echo.Context) error {
 	}
 
 	// now save the image, then display it create a file in the static folder
+	return saveAndRedirect(c, out, file_extension, "lego")
+}
+
+func saveAndRedirect(c echo.Context, out io.Reader, file_extension string, prefix string) error {
 	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
-	filename := createStaticTimestampFilename(file_extension, "primitive_")
+	filename := createStaticTimestampFilename(file_extension, prefix)
 	out_file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -215,12 +219,7 @@ func applyLegoTransform(c echo.Context) error {
 
 	// call the other handler to display the image!
 	relativeFilename := strings.TrimPrefix(filename, "static/")
-	err = c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
 }
 
 func applyPrimitiveTransform(c echo.Context) error {
@@ -253,27 +252,12 @@ func applyPrimitiveTransform(c echo.Context) error {
 	}
 
 	// now save the image, then display it create a file in the static folder
-	// TODO: maybe turn this into a function that can be used by both the primitive and Legoize transforms
-	filename := createStaticTimestampFilename(file_extension, "primitive_")
-	out_file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	io.Copy(out_file, out)
-
-	// call the other handler to display the image!
-	relativeFilename := strings.TrimPrefix(filename, "static/")
-	err = c.Redirect(http.StatusSeeOther, fmt.Sprintf("/display/%s", relativeFilename))
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
+	return saveAndRedirect(c, out, file_extension, "primitive")
 }
 
 func createStaticTimestampFilename(file_extension string, prefix string) string {
 	timestamp := time.Now().UnixNano()
-	filename := fmt.Sprintf("static/%sout_%d%s", prefix, timestamp, file_extension)
+	filename := fmt.Sprintf("static/%s_out_%d%s", prefix, timestamp, file_extension)
 	return filename
 }
 
