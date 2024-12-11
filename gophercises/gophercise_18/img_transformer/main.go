@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"img_transformer/legoize"
 	"img_transformer/primitive"
@@ -72,6 +73,11 @@ type TemplateFormData struct {
 	LastImagePath string
 }
 
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, os.ErrNotExist)
+}
+
 func handleInitialForm(c echo.Context) error {
 	errorMessage := c.QueryParam("error")
 	script := ""
@@ -84,7 +90,7 @@ func handleInitialForm(c echo.Context) error {
 	// get the cookie for the image path
 	lastImagePath := ""
 	cookie, err := c.Cookie("imagePath")
-	if err == nil {
+	if err == nil && pathExists(cookie.Value) {
 		lastImagePath = cookie.Value
 	}
 
