@@ -1,0 +1,3 @@
+[submodule "go-concurrency-exercises"]
+	path = go-concurrency-exercises
+	url = https://github.com/simonebonato/go-concurrency-exercises.git
