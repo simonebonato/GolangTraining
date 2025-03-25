@@ -3,4 +3,4 @@ basic_web_app_playlist/*/tmp/
 tmp*
 *.db
 gophercises/gophercise_18/img_transformer/static/
- 
+parallel_downloads/credentials.json
